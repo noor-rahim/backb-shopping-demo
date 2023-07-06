@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import LogoAndCart from '~/components/LogoAndCart';
 import products from "~/store/products";
 import cart from "~/store/cart";
-import { transformCartItemsToProductz } from './dashboard';
+import { transformCartItemsToProductz } from './cart';
 
 interface PropsT {
 }

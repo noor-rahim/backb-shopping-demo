@@ -1,6 +1,6 @@
 import { Link } from "@remix-run/react";
 import { useEffect, useState } from "react";
-import { transformCartItemsToProductz } from "~/routes/dashboard";
+import { transformCartItemsToProductz } from "~/routes/cart";
 import cart from "~/store/cart";
 
 
@@ -32,7 +32,7 @@ function Product(props: ProductT) {
     return (
         <div className=" w-full rounded-md bg-white ">
             <Link to={`../productoverview/${props.id}`}>
-                <div className="mb-4 h-60 w-full">
+                <div className="mb-4 border border-slate-500 rounded-lg h-60 w-full">
                     <img
                         className=" h-60 w-full object-cover object-center rounded-lg hover:opacity-75"
                         src={props.image}

@@ -1,7 +1,7 @@
 import logo from '../../public/assets/logo.svg';
 import cart from '../../public/assets/bag-shopping-solid.svg';
 import { Link } from '@remix-run/react';
-import { transformCartItemsToProductz } from '~/routes/dashboard';
+import { transformCartItemsToProductz } from '~/routes/cart';
 import { useEffect, useState } from 'react';
 
 export default function LogoAndCart() {
@@ -19,7 +19,7 @@ export default function LogoAndCart() {
             <Link to="../home">
                 <img className='m-5 h-20 w-40 ' src={logo} />
             </Link>
-            <Link to="../dashboard" >
+            <Link to="../cart" >
                 <div className='flex justify-end relative mr-7 mt-12'>
                     <img className='h-7 w-7  ' src={cart} />
                     {cartHasItem}
