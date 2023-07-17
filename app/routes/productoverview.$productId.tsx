@@ -1,11 +1,11 @@
 
 import { LoaderFunction } from '@remix-run/node';
-import { Link, useLoaderData } from '@remix-run/react';
+import { Link, useFetcher, useLoaderData } from '@remix-run/react';
 import { useEffect, useState } from 'react'
 import LogoAndCart from '~/components/LogoAndCart';
-import products from "~/store/products";
-import cart from "~/store/cart";
-import { transformCartItemsToProductz } from './cart';
+import { getOneProduct, getProduct } from '~/models/product.server';
+import { getCategories } from '~/models/category.server';
+import { getCartItemsCount } from '~/models/cart.server';
 
 interface PropsT {
 }
@@ -16,12 +16,14 @@ interface ProductT {
   price: string;
   href: string;
   description: string;
-  highlights: string[];
+  features: FeaturesT[];
+  shipping: ShippingT[];
   details: string;
   quantity: number;
   images: ImagesT[];
   calloutName: string;
   nature: string;
+  cart: { quantity: number } | null;
 }
 
 interface ImagesT {
@@ -29,50 +31,47 @@ interface ImagesT {
   alt: string;
 }
 
+interface FeaturesT {
+  id: string;
+  features: string;
+}
 
-export const loader: LoaderFunction = ({ params }) => {
+interface ShippingT {
+  id:string;
+  shipping: string;
+}
+
+export const loader: LoaderFunction = async ({ params }) => {
   const productId = (params['productId'] ?? "");
-  const selectedProduct = products.find(p => {
-    return p.id === productId;
-  });
+  const productIdInNumber = parseInt(productId);
+  const product = await getOneProduct({ id: productIdInNumber });
+  const cartItemsCount = await getCartItemsCount();
 
-  return { product: selectedProduct }
+  if (product?.categoryId) {
+    const [category] = await getCategories({ id: product.categoryId });
+    product.calloutName = category.name;
+  }
+  return { product: product, cartItemsCount }
 }
 
 
-export default function ProductOverview(_props: PropsT) {
+export default function ProductOverview(_props: ProductT) {
   const loaderData = useLoaderData();
-  const productInLoader = loaderData.product;
+  const fetcher = useFetcher();
   const [detailsCollapse, setDetailsCollapse] = useState(false);
   const [featuresCollapse, setFeaturesCollapse] = useState(false);
   const [descriptionCollapse, setDescriptionCollapse] = useState(false);
   const [returnCollapse, setReturnCollapse] = useState(false);
-  const [product, setProduct] = useState<ProductT>({
-    ...productInLoader,
-    quantity: 0,
-  });
 
-  useEffect(() => {
-    const alreadyInCartProduct = transformCartItemsToProductz().find(v => productInLoader.id === v.id);
-    const quantity = alreadyInCartProduct ? alreadyInCartProduct.quantity : 0;
-    setProduct({ ...productInLoader, quantity });
-    setCount(quantity);
-  }, [productInLoader]);
-  const [count, setCount] = useState(product.quantity);
+  const product = loaderData.product;
+  const count = (product.cart !== null) ? (product.cart.quantity ?? 0) : 0;
 
-  const handleAddToCart = () => {
-    const updatedProduct = cart.incrementQuantity({ productId: product.id })
-    setCount(updatedProduct.quantity);
-  };
 
-  const handleRemoveFromCart = () => {
-    const updatedProduct = cart.decrementQuantity({ productId: product.id })
-    setCount(updatedProduct.quantity);
-  };
+
 
   return (
     <div className="bg-white mx-auto min-h-screen max-w-screen-lg">
-      <LogoAndCart />
+      <LogoAndCart cartItemsCount={loaderData.cartItemsCount} />
       <div className="pt-6">
         <nav aria-label="Breadcrumb">
           <ol role="list" className="mx-auto flex max-w-3xl items-center space-x-2 px-4 sm:px-6 lg:max-w-7xl lg:px-8">
@@ -95,7 +94,7 @@ export default function ProductOverview(_props: PropsT) {
             </li>
 
             <li className="text-sm">
-              <a href={product.href} aria-current="page" className="font-medium text-gray-500 hover:text-gray-600">
+              <a href={"product.href"} aria-current="page" className="font-medium text-gray-500 hover:text-gray-600">
                 {product.name}
               </a>
             </li>
@@ -110,7 +109,7 @@ export default function ProductOverview(_props: PropsT) {
                 <div
                   key={`slide${index + 1}`}
                   id={`slide${index + 1}`}
-                  className="carousel-item relative w-full aspect-h-4 aspect-w-3 overflow-hidden rounded-lg">
+                  className="carousel-item relative w-full h-[600px] aspect-h-4 aspect-w-3 overflow-hidden rounded-lg">
                   <img
                     src={image.src}
                     alt={image.alt}
@@ -145,31 +144,39 @@ export default function ProductOverview(_props: PropsT) {
 
 
             {/* Add to cart */}
-            {count === 0 ? (
-              <button
-                onClick={handleAddToCart}
-                type="submit"
-                className="mt-10 flex w-full items-center justify-center rounded-md border border-transparent bg-indigo-600 px-8 py-3 text-base font-medium text-white hover:bg-indigo-700 "
-              >
-                Add to Cart
-              </button>
-            ) : (
-              <div className="flex mt-10 items-center ">
+            <fetcher.Form method='post' action='/cart' >
+              <input type="hidden" name="product-id" value={product.id} ></input>
+              {count === 0 ? (
                 <button
-                  className="bg-indigo-600 h-full w-full hover:bg-indigo-700 text-white py-3 font-bold  rounded"
-                  onClick={handleRemoveFromCart}
+                  name="button-action"
+                  value="increment"
+                  type="submit"
+                  className="mt-10 flex w-full items-center justify-center rounded-md border border-transparent bg-indigo-600 px-8 py-3 text-base font-medium text-white hover:bg-indigo-700 "
                 >
-                  -
+                  Add to Cart
                 </button>
-                <span className="bg-indigo-100 text-center px-16 font-bold h-full w-full py-3 ">{count}</span>
-                <button
-                  className="bg-indigo-500 h-full w-full py-3 hover:bg-indigo-700 text-white font-bold  rounded"
-                  onClick={handleAddToCart}
-                >
-                  +
-                </button>
-              </div>
-            )}
+              ) : (
+                <div className="flex mt-10 items-center ">
+                  <button
+                    name="button-action"
+                    value="decrement"
+                    type="submit"
+                    className="bg-indigo-600 h-full w-full hover:bg-indigo-700 text-white py-3 font-bold  rounded"
+                  >
+                    -
+                  </button>
+                  <span className="bg-indigo-100 text-center px-16 font-bold h-full w-full py-3 ">{count}</span>
+                  <button
+                    name="button-action"
+                    value="increment"
+                    type="submit"
+                    className="bg-indigo-500 h-full w-full py-3 hover:bg-indigo-700 text-white font-bold  rounded"
+                  >
+                    +
+                  </button>
+                </div>
+              )}
+            </fetcher.Form>
           </div>
 
           <div className="py-10 lg:col-span-2 lg:col-start-1 lg:border-r lg:border-gray-200 lg:pb-16 lg:pr-8 lg:pt-6">
@@ -193,9 +200,9 @@ export default function ProductOverview(_props: PropsT) {
 
               <div className="mt-4 collapse-content">
                 <ul role="list" className="list-disc space-y-2 pl-4 text-sm">
-                  {product.highlights.map((highlight) => (
-                    <li key={highlight} className="text-gray-400">
-                      <span className="text-gray-600">{highlight}</span>
+                  {product.features.map((f) => (
+                    <li key={f.id} className="text-gray-400">
+                      <span className="text-gray-600">{f.features}</span>
                     </li>
                   ))}
                 </ul>
@@ -207,9 +214,9 @@ export default function ProductOverview(_props: PropsT) {
 
               <div className="mt-4 collapse-content">
                 <ul role="list" className="list-disc space-y-2 pl-4 text-sm">
-                  {product.highlights.map((highlight) => (
-                    <li key={highlight} className="text-gray-400">
-                      <span className="text-gray-600">{highlight}</span>
+                  {product.shipping.map((s) => (
+                    <li key={s.id} className="text-gray-400">
+                      <span className="text-gray-600">{s.shipping}</span>
                     </li>
                   ))}
                 </ul>

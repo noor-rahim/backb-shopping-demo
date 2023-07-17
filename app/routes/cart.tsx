@@ -1,64 +1,69 @@
-import { useEffect, useState } from "react"
 import backArrow from "../../public/assets/arrow-left-solid.svg"
-import { Link } from '@remix-run/react'
+import { Form, Link, useLoaderData } from '@remix-run/react'
 import LogoAndCart from "~/components/LogoAndCart";
-import cart from "~/store/cart";
-import products from "~/store/products";
+import { ActionArgs, LoaderArgs } from "@remix-run/node";
+import { decrementCartItemQuantity, deleteItemFromCart, getCartItems, getCartItemsCount, incrementCartItemQuantity } from "~/models/cart.server";
+import { getCategories } from "~/models/category.server";
 
-const getProductById = (id) => {
-   return products.find(v => v.id === id);
-}
 
-export const transformCartItemsToProductz = () => {
-    const productz = cart.getAll().map((cartItem) => {
-        const product = getProductById(cartItem.productId);
-        if(!product) return;
-        return {
-            ...product,
-            totalPrice: product?.price * cartItem.quantity,
-            quantity: cartItem.quantity,
-        };
-    }).filter(v => v);
-    
-    return productz;
-    
-}
+export const action = async ({request}: ActionArgs) => {
+    const formData = await request.formData();
+    const actionType = formData.get("button-action");
+    const productIdRaw = formData.get("product-id");
+    if (typeof productIdRaw !== 'string')
+        return {error: {message: 'product-id should be a string'}};
+    const productId = parseInt(productIdRaw); 
 
-export default function Dashboard() {
-    const [productz, setProductz] = useState([]);
+    if (!Number.isInteger(productId)) 
+        return {error: {message: "Product id should be a valid integer number"}};
 
-    useEffect(() => {
-        setProductz(transformCartItemsToProductz())
-    }, [])
 
-    const handleRemoveFromCart = (id: string) => {
-        const cartItems = cart.remove({productId: id});
-        const updatedProducts = transformCartItemsToProductz();
-        setProductz(updatedProducts);
+    if (actionType === 'increment') {
+        const v = await incrementCartItemQuantity({productId})
+        return {v, productId, actionType};
     }
 
+    if(actionType === "decrement") {
+        const v = await decrementCartItemQuantity({productId});
+        return {v, productId, actionType};
+    }
 
-    const handleAddItem = (id: string) => {
-        const cartItems = cart.incrementQuantity({productId: id});
-        const updatedProducts = transformCartItemsToProductz();
-        setProductz(updatedProducts);
-    };
+    if(actionType === "delete") {
+        const v = await deleteItemFromCart({productId});
+        return {v, productId, actionType};
+    }
 
-    const handleRemoveItem = (id: string) => {
-       const cartItems = cart.decrementQuantity({productId: id});
-        const updatedProducts = transformCartItemsToProductz();
-        setProductz(updatedProducts);
-    };
+    return {error: {message: "button-action should be one of increment or decrement or delete"}}
+}
 
-    const totalPrice = productz.reduce((total, product) => {
+export const loader = async ({}: LoaderArgs) => {
+    const cartItemsRaw = await getCartItems({});
+    const cartItemsCount = await getCartItemsCount();
+    const cartItems =  cartItemsRaw.map((ci) => {
+        const totalPrice = 
+            ci.product ? ci.quantity * ci.product?.price : 0;
+        return {...ci, product: {...ci.product, totalPrice}}
+    } )
+
+    
+    return {cartItems, cartItemsCount};
+}
+
+
+export default function Cart() {
+    const loaderData = useLoaderData();
+    const cartItems = loaderData.cartItems;
+    console.log(cartItems)
+    const cartItemsCount = loaderData.cartItemsCount;
+
+    const totalPrice = cartItems.reduce((total, {product}) => {
         return total + product.totalPrice;
       }, 0);
     
-   
 
     return (
         <div className="flex-1 flex h-full w-full mx-auto min-h-screen max-w-screen-md flex-col overflow-y-scroll bg-white">
-            <LogoAndCart />
+            <LogoAndCart cartItemsCount={cartItemsCount}/>
             <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-6">
                 <Link to={'../'}>
                     <div className="flex flex-row my-4 border-b border-slate-300 pb-4">
@@ -67,17 +72,17 @@ export default function Dashboard() {
                     </div>
                 </Link>
                 <div className="flex items-center justify-center mb-5">
-                <h1 className="font-pathway-extreme text-xl font-bold">{(productz.length !== 0) ? "Your Items": "No items"}</h1>
+                <h1 className="font-pathway-extreme text-xl font-bold">{(cartItems.length !== 0) ? "Your Items": "No items"}</h1>
                 </div>
                 <div className="mt-8">
                     <div className="flow-root">
                         <ul role="list" className="-my-6 divide-y divide-gray-200">
-                            {productz.map((product) => (
+                            {cartItems.map(({quantity, product}) => (
                                 <li key={product.id} className="flex py-6">
                                     <div className="h-24 w-24 flex-shrink-0 overflow-hidden rounded-md border border-gray-200">
                                         <img
-                                            src={product.images[0].src}
-                                            alt={product.images[0].alt}
+                                            src={product.images[0]?.src ?? ""}
+                                            alt={product.images[0]?.alt ?? ""}
                                             className="h-full w-full object-cover object-center"
                                         />
                                     </div>
@@ -92,34 +97,40 @@ export default function Dashboard() {
                                             </div>
                                             <p className="mt-1 text-sm text-gray-500">{product.color}</p>
                                         </div>
-                                        <div className="flex flex-1 items-end justify-between text-sm">
-
+                                        <Form method="post" className="flex flex-1 items-end justify-between text-sm">
+                                            <input type="hidden" name="product-id" value={product.id} ></input>
                                             <div className="flex ">
-
                                                 <button
+                                                    name="button-action"
+                                                    value="decrement"
+                                                    type="submit"
                                                     className="bg-indigo-600 h-full w-full hover:bg-indigo-700 px-2 text-white py-1 font-bold  rounded"
-                                                    onClick={() => handleRemoveItem(product.id)}
                                                 >
                                                     -
                                                 </button>
-                                                <span className="bg-indigo-100 text-center px-4 font-bold h-full w-full py-1 ">{product.quantity}</span>
+                                                <span className="bg-indigo-100 text-center px-4 font-bold h-full w-full py-1 ">
+                                                    {quantity}
+                                                </span>
                                                 <button
+                                                    name="button-action"
+                                                    value="increment"
+                                                    type="submit"
                                                     className="bg-indigo-500 h-full w-full py-1 hover:bg-indigo-700 px-2 text-white font-bold  rounded"
-                                                    onClick={() => handleAddItem(product.id)}
                                                 >
                                                     +
                                                 </button>
                                             </div>
                                             <div className="flex">
                                                 <button
-                                                    type="button"
+                                                    name="button-action"
+                                                    value="delete"
+                                                    type="submit"
                                                     className="font-medium text-indigo-600 hover:text-indigo-500"
-                                                    onClick={() => handleRemoveFromCart(product.id)}
                                                 >
                                                     Remove
                                                 </button>
                                             </div>
-                                        </div>
+                                        </Form>
                                     </div>
                                 </li>
                             ))}

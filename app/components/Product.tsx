@@ -1,12 +1,8 @@
-import { Link } from "@remix-run/react";
-import { useEffect, useState } from "react";
-import { transformCartItemsToProductz } from "~/routes/cart";
-import cart from "~/store/cart";
-
+import {  Link, useFetcher } from "@remix-run/react";
 
 interface ProductT {
     id: string;
-    image: string;
+    images: ImagesT;
     alt: string;
     name: string;
     nature: string;
@@ -14,29 +10,24 @@ interface ProductT {
     quantity: number;
 }
 
+interface ImagesT {
+    src: string;
+    alt: string;
+}
 
 
 function Product(props: ProductT) {
-    const [count, setCount] = useState(props.quantity);
-
-    const handleAddToCart = () => {
-        const updatedProduct = cart.incrementQuantity({ productId: props.id })
-        setCount(updatedProduct.quantity);
-    };
-
-    const handleRemoveFromCart = () => {
-        const updatedProduct = cart.decrementQuantity({ productId: props.id })
-        setCount(updatedProduct.quantity);
-    };
+    const count = props.quantity;
+    const fetcher = useFetcher();
 
     return (
-        <div className=" w-full rounded-md bg-white ">
+        <div className=" w-full rounded-md bg-white mx-auto">
             <Link to={`../productoverview/${props.id}`}>
-                <div className="mb-4 border border-slate-500 rounded-lg h-60 w-full">
+                <div className="mb-4 border border-slate-500 rounded-lg h-60 sm:h-80 ">
                     <img
-                        className=" h-60 w-full object-cover object-center rounded-lg hover:opacity-75"
-                        src={props.image}
-                        alt={props.alt} >
+                        className=" h-full w-full object-cover object-center rounded-lg hover:opacity-75"
+                        src={props.images.src}
+                        alt={props.images.alt} >
                     </img>
                 </div>
                 <div className="h-40 w-full flex flex-1 flex-col justify-between">
@@ -49,67 +40,63 @@ function Product(props: ProductT) {
                 </div>
             </Link>
 
-            <div className="px-auto mt-2">
+            <fetcher.Form method="post" action="/cart" className="px-auto mt-2">
+                <input type="hidden" name="product-id" value={props.id} ></input>
                 {count === 0 ? (
                     <button
+                        name="button-action"
+                        value="increment"
+                        type="submit"
                         className="bg-gray-500 w-full h-full hover:bg-gray-700 text-white py-1 font-bold  rounded"
-                        onClick={handleAddToCart}
                     >
                         Add to Cart
                     </button>
                 ) : (
                     <div className="flex items-center ">
                         <button
+                            name="button-action"
+                            value="decrement"
+                            type="submit"
                             className="bg-gray-500 h-full w-full hover:bg-gray-700 text-white py-1 font-bold  rounded"
-                            onClick={handleRemoveFromCart}
                         >
                             -
                         </button>
                         <span className="bg-gray-200 text-center px-6 font-bold h-full w-full py-1 ">{count}</span>
                         <button
+                            name="button-action"
+                            value="increment"
+                            type="submit"
                             className="bg-gray-500 h-full w-full py-1 hover:bg-gray-700 text-white font-bold  rounded"
-                            onClick={handleAddToCart}
                         >
                             +
                         </button>
                     </div>
                 )}
-            </div>
+            </fetcher.Form>
         </div>
     );
 }
 
 interface PropsT {
-    products: ProductT[];
+    products: (ProductT & {
+        cart: {quantity: number} | null;
+    })[];
 }
 
 
 export default function AllProduct(props: PropsT) {
-    const [products, setProducts] = useState<any>([])
- 
-    useEffect(() => {
-        const productsInCart = transformCartItemsToProductz();
-        
-        const products = props.products.map(p => {
-            const product = productsInCart.find(v => p.id === v.id)
-            if (product) return product
-            return ({ ...p, quantity: 0 })
-        })
-        setProducts(products);
-    }, [props.products])
 
     return (
-        <div className=" sm:mx-auto mx-5 mt-2 grid md:grid-cols-3 sm:grid-cols-2 lg:grid-cols-4 grid-cols-2 gap-6   ">
-            {products.map((product:any) => {
+        <div className=" mx-auto mt-2 grid md:grid-cols-3 sm:grid-cols-2 lg:grid-cols-4 grid-cols-2 gap-6   ">
+            {props.products.map((product) => {
                 return <Product
                     key={product.id}
                     id={product.id}
-                    image={product.images[0].src}
-                    alt ={product.images[0].alt}
+                    images={product.images[0] ?? []}
                     name={product.name}
                     price={product.price}
                     nature={product.nature}
-                    quantity={product.quantity}
+                    quantity={(product.cart !== null) ? (product.cart.quantity ?? 0) : 0}
                 />
 
             })}
