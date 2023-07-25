@@ -4,5 +4,7 @@
 
 ## Instructions
 1. Clone this repo
-2. copy [env.example](https://github.com/noor-rahim/backb-shopping-demo/blob/main/.env.example) as .env. 
-3. run `npm install && npm run dev`
+2. copy [env.example](https://github.com/noor-rahim/backb-shopping-demo/blob/main/.env.example) as .env.
+3. run `npx prisma migrate dev`
+4. run `npx prisma generate`
+5. run `npm install && npm run dev`
